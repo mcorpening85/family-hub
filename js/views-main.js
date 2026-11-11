@@ -5,7 +5,8 @@ import { db, kids, person, tasksFor, completion, toggleTask, streak, balance, is
 import { state, go, render } from './nav.js';
 import { confirmDialog, formDialog, avatar, party } from './ui.js';
 import { getWeather } from './weather.js';
-import { quickTaskForm } from './views-parent.js';
+import { kidFinished } from './notify.js';
+import { quickTaskForm, setUpWeather } from './views-parent.js';
 
 const eventTime = (e) => (e.allDay ? 'All day' : fmtTime(new Date(e.start)));
 
@@ -19,7 +20,9 @@ export function homeView() {
   const day = today();
   const now = new Date();
   const weather = h('div', { class: 'weather' });
-  getWeather().then((w) => {
+  if (!setting('lat') || !setting('lon')) {
+    weather.append(h('button', { class: 'weather-setup', onclick: setUpWeather }, '🌤️ Set up weather'));
+  } else getWeather().then((w) => {
     if (w) weather.append(h('span', { class: 'weather-icon' }, w.icon),
       h('div', {}, h('strong', {}, w.temp + '°'), h('small', {}, `${w.hi}° / ${w.lo}°`)));
   });
@@ -145,6 +148,7 @@ function taskRow(t, p) {
       const before = balance(p.id);
       const r = toggleTask(t);
       if (!r.done) return;
+      kidFinished(p, t, r);
       celebrate(document.querySelector(`[data-task="${t.id}"] .check`));
       // Milestones: a streak bonus, finishing everything, or enough stars for a reward.
       const lines = [];

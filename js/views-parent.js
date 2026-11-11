@@ -2,9 +2,10 @@
 import { h, uid, today, toast } from './util.js';
 import { db, conn, setConn, kids, person, balance, adjustStars, put, del, apply, setting,
   setSettings, cancelRedemption, sync } from './store.js';
-import { state, go, render, unlocked } from './nav.js';
-import { formDialog, confirmDialog, pinPad, COLORS, avatar } from './ui.js';
+import { state, go, render, unlocked, unlock } from './nav.js';
+import { formDialog, confirmDialog, pinPad, COLORS, avatar, modal } from './ui.js';
 import { searchPlace } from './weather.js';
+import { newTopic, notifyOn, send, topicUrl } from './notify.js';
 
 const REPEAT = [
   { value: 'daily', label: 'Every day' },
@@ -20,6 +21,24 @@ const WHEN = [
 const repeatLabel = (t) => t.repeat === 'weekly'
   ? String(t.days || '').split(',').filter(Boolean).map((d) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(' ')
   : t.repeat === 'once' ? 'Once' + (t.date ? ' · ' + t.date : '') : REPEAT.find((r) => r.value === t.repeat).label;
+
+// Ask for the PIN (if one is set), then open the parent area. Resolves true once it is open.
+export async function openParent(extra = {}) {
+  const pin = setting('pin');
+  if (pin && !unlocked()) {
+    const entered = await pinPad();
+    if (entered == null) return false;
+    if (entered !== pin) return toast('Wrong PIN'), false;
+    unlock();
+  }
+  go('parent', extra);
+  return true;
+}
+
+// From the home screen's "Set up weather" button.
+export async function setUpWeather() {
+  if (await openParent({ parentTab: 'settings' })) weatherForm();
+}
 
 export function parentView() {
   const tab = state.parentTab || 'stars';
@@ -239,27 +258,50 @@ export async function changePin() {
   return true;
 }
 
+const here = () => new Promise((resolve, reject) =>
+  navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 15000, maximumAge: 10 * 60 * 1000 }));
+
+function useWeatherPlace(lat, lon, place, tempUnit) {
+  localStorage.removeItem('fh-weather');
+  return setSettings({ lat, lon, place, tempUnit });
+}
+
 function weatherForm() {
+  const canLocate = 'geolocation' in navigator && window.isSecureContext;
   formDialog({
-    title: 'Weather location', saveLabel: 'Search',
+    title: 'Weather location', saveLabel: 'Save',
     fields: [
-      { name: 'place', label: 'Town or city', placeholder: 'Charlotte' },
+      canLocate && { name: 'how', label: 'Where', type: 'select', value: 'search',
+        options: [{ value: 'search', label: 'Search for a town' }, { value: 'here', label: 'Use this tablet’s location' }] },
+      { name: 'place', label: 'Town or city', placeholder: 'Charlotte', show: (v) => v.how !== 'here' },
       { name: 'unit', label: 'Temperature', type: 'select', value: setting('tempUnit', 'fahrenheit'),
         options: [{ value: 'fahrenheit', label: '°F' }, { value: 'celsius', label: '°C' }] },
-    ],
+    ].filter(Boolean),
     onSave: async (v) => {
-      if (!v.place) return setSettings({ tempUnit: v.unit });
+      if (v.how === 'here') {
+        try {
+          const pos = await here();
+          await useWeatherPlace(pos.coords.latitude.toFixed(3), pos.coords.longitude.toFixed(3), 'This tablet’s location', v.unit);
+          return;
+        } catch (e) {
+          return toast('Couldn’t get this tablet’s location. Search for your town instead.'), false;
+        }
+      }
+      if (!v.place) {
+        if (!setting('lat')) return toast('Type your town or city'), false;
+        return setSettings({ tempUnit: v.unit });
+      }
       let found = [];
       try { found = await searchPlace(v.place); } catch (e) { /* offline */ }
       if (!found.length) return toast('Couldn’t find that place'), false;
+      if (found.length === 1) return useWeatherPlace(found[0].lat, found[0].lon, found[0].label, v.unit);
       setTimeout(() => formDialog({
         title: 'Which one?', saveLabel: 'Use this',
         fields: [{ name: 'i', label: 'Place', type: 'select', value: 0,
           options: found.map((p, i) => ({ value: i, label: p.label })) }],
         onSave: (x) => {
           const p = found[Number(x.i)];
-          localStorage.removeItem('fh-weather');
-          setSettings({ lat: p.lat, lon: p.lon, place: p.label, tempUnit: v.unit });
+          useWeatherPlace(p.lat, p.lon, p.label, v.unit);
         },
       }));
     },
@@ -280,6 +322,117 @@ function calendarsForm() {
   });
 }
 
+// ---------- Add another device ----------
+// The QR library is bundled with the app (js/vendor) and loaded only when needed,
+// so the link, which holds the family key, is never sent to a QR website.
+let qrLib;
+function loadQr() {
+  qrLib = qrLib || new Promise((resolve, reject) => {
+    if (window.qrcode) return resolve(window.qrcode);
+    const s = h('script', { src: 'js/vendor/qrcode.js', onload: () => resolve(window.qrcode), onerror: reject });
+    document.head.append(s);
+  }).catch((e) => { qrLib = null; throw e; });
+  return qrLib;
+}
+
+function qrSvg(qrcode, text) {
+  const qr = qrcode(0, 'M');
+  qr.addData(text);
+  qr.make();
+  const n = qr.getModuleCount();
+  const q = 4;   // the white border scanners need
+  let d = '';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) d += `M${c + q} ${r + q}h1v1h-1z`;
+  const box = h('div', { class: 'qr-code', role: 'img', 'aria-label': 'QR code to connect another device' });
+  box.innerHTML = `<svg viewBox="0 0 ${n + 2 * q} ${n + 2 * q}" shape-rendering="crispEdges" aria-hidden="true">` +
+    `<rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#2b2d42"/></svg>`;
+  return box;
+}
+
+const QR_SECONDS = 60;
+function addDevice(link) {
+  const spot = h('div', { class: 'qr-spot' });
+  let timer;
+  const hideQr = () => {
+    clearInterval(timer);
+    spot.replaceChildren();
+    showBtn.hidden = false;
+  };
+  const showQr = async () => {
+    let qrcode;
+    try { qrcode = await loadQr(); } catch (e) { return toast('Couldn’t load the QR code. Use Copy link instead.'); }
+    let left = QR_SECONDS;
+    const count = h('small', { class: 'muted' }, `Hides in ${left}s`);
+    spot.replaceChildren(qrSvg(qrcode, link),
+      h('div', { class: 'qr-foot' }, count, h('button', { class: 'btn small', type: 'button', onclick: hideQr }, 'Hide code')));
+    showBtn.hidden = true;
+    clearInterval(timer);
+    timer = setInterval(() => {
+      if (!spot.isConnected) return clearInterval(timer);
+      left -= 1;
+      if (left <= 0) return hideQr();
+      count.textContent = `Hides in ${left}s`;
+    }, 1000);
+  };
+  const showBtn = h('button', { class: 'btn primary', type: 'button', onclick: showQr }, 'Show QR code');
+  modal('Add another device', h('div', { class: 'add-device' },
+    h('p', {}, 'Scan the code with the new phone or tablet’s camera, or copy the link and open it there. It connects straight away, with no address or key to type.'),
+    h('div', { class: 'actions' },
+      showBtn,
+      h('button', { class: 'btn', type: 'button', onclick: () => navigator.clipboard.writeText(link)
+        .then(() => toast('Link copied'), () => prompt('Copy this link', link)) }, 'Copy link')),
+    spot,
+    h('p', { class: 'qr-warn' }, '🔒 Anyone who scans this code or gets this link can open your family’s hub. Only show it to your own devices.')),
+    '', () => clearInterval(timer));
+}
+
+// ---------- Phone notifications (ntfy) ----------
+function notificationsSetup() {
+  let topic = setting('ntfyTopic') || newTopic();
+  let on = notifyOn();
+  const body = h('div', { class: 'notify-setup' });
+  const copy = (text) => navigator.clipboard.writeText(text)
+    .then(() => toast('Copied'), () => prompt('Copy this', text));
+  const save = (extra) => setSettings({ ntfyTopic: topic, ...extra });
+
+  const draw = async () => {
+    let qr = null;
+    try { qr = qrSvg(await loadQr(), topicUrl(topic)); } catch (e) { /* the name still works */ }
+    body.replaceChildren(
+      h('p', {}, 'Get an alert on your phone each time a kid finishes a task. It uses ntfy, a free app with no account to make.'),
+      h('ol', { class: 'steps' },
+        h('li', {}, 'Install the ntfy app on each parent’s phone. ',
+          h('a', { href: 'https://docs.ntfy.sh/subscribe/phone/', target: '_blank', rel: 'noopener' }, 'Where to get it')),
+        h('li', {}, 'In the app, tap ', h('strong', {}, '+'), ' and subscribe to this topic name (leave the server as ntfy.sh):'),
+      ),
+      h('div', { class: 'topic' },
+        h('code', {}, topic),
+        h('button', { class: 'btn small', type: 'button', onclick: () => copy(topic) }, 'Copy')),
+      qr && h('details', { class: 'topic-qr' },
+        h('summary', {}, 'Or scan to open the topic on your phone'), qr),
+      h('div', { class: 'actions' },
+        on ? h('button', { class: 'btn', type: 'button', onclick: async () => {
+          on = false; await save({ ntfyOn: '' }); toast('Phone notifications off'); draw();
+        } }, 'Turn off')
+          : h('button', { class: 'btn primary', type: 'button', onclick: async () => {
+            on = true; await save({ ntfyOn: '1' }); toast('Phone notifications on'); draw();
+          } }, 'Turn on'),
+        h('button', { class: 'btn', type: 'button', onclick: () => send({
+          topic, title: 'Family Hub test', message: 'Notifications are working. You’ll get one each time a kid finishes a task.',
+          tags: ['bell'] }, topic).then(() => toast('Test sent. Check your phone.'), () => toast('Couldn’t reach ntfy. Check the internet connection.')) },
+          'Send a test'),
+        h('button', { class: 'btn', type: 'button', onclick: async () => {
+          if (!(await confirmDialog('Make a new topic name? Each phone will need to subscribe again.', 'New name', 'Keep'))) return;
+          topic = newTopic();
+          await save({});
+          draw();
+        } }, 'New topic name')),
+      h('p', { class: 'qr-warn' }, '🔒 Alerts pass through ntfy’s free server and show the kid’s name and the task. Anyone who knows this topic name could read them, so keep it to your family.'));
+  };
+  draw();
+  modal('Phone notifications', body);
+}
+
 function settingsTab() {
   const link = conn.demo ? '' : location.origin + location.pathname + '#c=' +
     btoa(JSON.stringify({ url: conn.url, key: conn.key }));
@@ -295,9 +448,11 @@ function settingsTab() {
           { name: 'streakEvery', label: 'Every how many days in a row', type: 'number', value: setting('streakEvery', 7), min: 1 },
           { name: 'streakBonus', label: 'Bonus stars (0 = off)', type: 'number', value: setting('streakBonus', 5), min: 0 }],
         onSave: (v) => { setSettings(v); } })),
+    row('Phone notifications', notifyOn() ? 'On: you get an alert when a kid finishes a task' : 'Off',
+      notifyOn() ? 'Change' : 'Set up', notificationsSetup),
     !conn.demo && row('Google calendars', 'Choose which calendars appear', 'Choose', calendarsForm),
-    !conn.demo && row('Add another device', 'Open this link on a phone or tablet to connect it', 'Copy link',
-      () => navigator.clipboard.writeText(link).then(() => toast('Link copied'), () => prompt('Copy this link', link))),
+    !conn.demo && row('Add another device', 'Scan a QR code or open a link on a phone or tablet to connect it', 'Connect',
+      () => addDevice(link)),
     row('Connection', conn.demo ? 'Demo mode: data stays on this device only' : 'Connected to your Google Sheet', 'Disconnect',
       async () => {
         if (await confirmDialog('Disconnect this device?' + (conn.demo ? ' Demo data stays saved here.' : ''), 'Disconnect', 'Cancel')) {
