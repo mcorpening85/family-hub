@@ -220,7 +220,7 @@ let idle;
 const resetIdle = () => {
   clearTimeout(idle);
   idle = setTimeout(() => {
-    if (document.querySelector('dialog[open]')) return resetIdle();
+    if (document.querySelector('.modal-layer')) return resetIdle();
     state.unlockedUntil = 0;
     if (conn && setting('setupDone') && state.view !== 'home') go('home');
   }, 3 * 60 * 1000);

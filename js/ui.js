@@ -73,19 +73,35 @@ function fanfare() {
   } catch (e) { /* sound is optional */ }
 }
 
-export function modal(title, body, cls = '') {
-  const d = h('dialog', { class: 'modal ' + cls });
+// A pop-up drawn as a plain layer over the page. Not the browser's <dialog>: on Amazon
+// Silk, text boxes inside a <dialog> open the keyboard but ignore every key.
+// onClose runs once however it closes (the ✕, Escape, or the returned close()).
+export function modal(title, body, cls = '', onClose) {
+  const before = document.activeElement;
+  let open = true;
   const close = () => {
-    if (d.open) d.close();
-    d.remove();
+    if (!open) return;
+    open = false;
+    document.removeEventListener('keydown', onKey, true);
+    layer.remove();
+    if (before && before.isConnected) before.focus({ preventScroll: true });
+    if (onClose) onClose();
   };
-  d.append(
+  const onKey = (e) => {
+    if (e.key !== 'Escape') return;
+    const layers = document.querySelectorAll('.modal-layer');
+    if (layers[layers.length - 1] !== layer) return;   // only the top pop-up closes
+    e.preventDefault();
+    close();
+  };
+  const box = h('div', { class: 'modal ' + cls, role: 'dialog', 'aria-modal': 'true', 'aria-label': title, tabindex: '-1' },
     h('div', { class: 'modal-head' }, h('h2', {}, title),
       h('button', { class: 'icon-btn', type: 'button', onclick: close, 'aria-label': 'Close' }, '✕')),
     body);
-  d.addEventListener('cancel', () => setTimeout(() => d.remove()));
-  document.body.append(d);
-  d.showModal();
+  const layer = h('div', { class: 'modal-layer' }, box);
+  document.addEventListener('keydown', onKey, true);
+  document.body.append(layer);
+  box.focus({ preventScroll: true });
   return close;
 }
 
@@ -93,12 +109,12 @@ export function confirmDialog(message, yes = 'Yes', no = 'No') {
   return new Promise((resolve) => {
     let close;
     const done = (v) => {
-      close();
       resolve(v);
+      close();
     };
     close = modal(message, h('div', { class: 'actions' },
       h('button', { class: 'btn', onclick: () => done(false) }, no),
-      h('button', { class: 'btn primary', onclick: () => done(true) }, yes)), 'confirm');
+      h('button', { class: 'btn primary', onclick: () => done(true) }, yes)), 'confirm', () => resolve(false));
   });
 }
 
@@ -216,15 +232,13 @@ export function pinPad(title = 'Parent PIN') {
       draw();
       if (pin.length === 4) {
         const v = pin;
-        setTimeout(() => { close(); resolve(v); }, 120);
+        setTimeout(() => { resolve(v); close(); }, 120);
       }
     };
     const pad = h('div', { class: 'pin-pad' },
       ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'].map((k) =>
         k ? h('button', { type: 'button', onclick: () => press(k) }, k) : h('span')));
     draw();
-    close = modal(title, h('div', { class: 'pin' }, dots, pad), 'confirm');
-    document.querySelector('dialog.modal:last-of-type .icon-btn')
-      .addEventListener('click', () => resolve(null));
+    close = modal(title, h('div', { class: 'pin' }, dots, pad), 'confirm', () => resolve(null));
   });
 }
