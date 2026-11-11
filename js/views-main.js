@@ -5,6 +5,7 @@ import { db, kids, person, tasksFor, completion, toggleTask, streak, balance, is
 import { state, go, render } from './nav.js';
 import { confirmDialog, formDialog, avatar, party } from './ui.js';
 import { getWeather } from './weather.js';
+import { quickTaskForm } from './views-parent.js';
 
 const eventTime = (e) => (e.allDay ? 'All day' : fmtTime(new Date(e.start)));
 
@@ -27,7 +28,7 @@ export function homeView() {
   const dinner = db.meals.find((m) => m.id === day);
 
   const groups = [['morning', '☀️ Morning'], ['day', '🌤️ Any time'], ['evening', '🌙 Evening']];
-  return h('div', { class: 'home' },
+  return h('div', { class: 'home fill' },
     h('header', { class: 'home-top' },
       h('div', { class: 'clock', id: 'clock' }, fmtTime(now)),
       h('div', { class: 'date' }, fmtDay(day)),
@@ -37,7 +38,7 @@ export function homeView() {
         h('small', {}, eventTime(e)), ' ', e.title)),
       h('button', { class: 'strip-chip dinner-chip', onclick: () => go('meals') },
         h('small', {}, '🍽️ Dinner'), ' ', dinner && dinner.meal ? dinner.meal : 'Not planned')),
-    h('div', { class: 'board' },
+    h('div', { class: 'board', 'data-scroll': 'board' },
       db.people.map((p) => {
         const evs = eventsFor(p, day);
         const tasks = tasksFor(p.id, day);
@@ -51,12 +52,14 @@ export function homeView() {
                 h('span', { class: 'pill' }, `✓ ${done}/${tasks.length}`),
                 p.role === 'kid' && h('span', { class: 'pill star' }, '⭐ ' + balance(p.id))))),
           h('div', { class: 'progress' }, h('div', { style: { width: (tasks.length ? (done / tasks.length) * 100 : 0) + '%' } })),
-          evs.length ? h('div', { class: 'col-events', onclick: () => go('calendar') }, evs.map((e) =>
-            h('div', { class: 'col-event' }, h('small', {}, eventTime(e)), h('span', {}, e.title)))) : null,
-          tasks.length ? groups.map(([when, label]) => {
-            const list = tasks.filter((t) => (t.when || 'day') === when);
-            return list.length ? [h('h3', {}, label), list.map((t) => taskRow(t, p))] : null;
-          }) : h('p', { class: 'muted col-empty' }, evs.length ? 'No tasks today' : 'Nothing to do today 🌈'));
+          h('div', { class: 'col-body', 'data-scroll': 'col-' + p.id },
+            evs.length ? h('div', { class: 'col-events', onclick: () => go('calendar') }, evs.map((e) =>
+              h('div', { class: 'col-event' }, h('small', {}, eventTime(e)), h('span', {}, e.title)))) : null,
+            tasks.length ? groups.map(([when, label]) => {
+              const list = tasks.filter((t) => (t.when || 'day') === when);
+              return list.length ? [h('h3', {}, label), list.map((t) => taskRow(t, p))] : null;
+            }) : h('p', { class: 'muted col-empty' }, evs.length ? 'No tasks today' : 'Nothing to do today 🌈')),
+          h('button', { class: 'col-add', onclick: () => quickTaskForm(p) }, '+ Add task'));
       })));
 }
 
@@ -123,7 +126,7 @@ function weekTab(p) {
     h('thead', {}, h('tr', {}, h('th'), days.map((d) =>
       h('th', { class: d === today() ? 'now' : '' }, fmtDay(d, { weekday: 'short' }))), h('th', {}, '🔥'))),
     h('tbody', {}, habits.map((t) => h('tr', {},
-      h('td', { class: 'habit-name' }, h('span', {}, t.icon), ' ', t.title),
+      h('td', { class: 'habit-name' }, p.role === 'kid' && [h('span', {}, t.icon), ' '], t.title),
       days.map((d) => {
         const due = isDue(t, d);
         const done = completion(t, d);
@@ -160,7 +163,7 @@ function taskRow(t, p) {
       });
       if (title) party(p, title, lines.length ? lines : ['Great job, ' + p.name + '! 🌟']);
     } },
-    h('span', { class: 'task-icon' }, t.icon || '⭐'),
+    p.role === 'kid' && h('span', { class: 'task-icon' }, t.icon || '⭐'),
     h('span', { class: 'grow' },
       h('span', { class: 'task-title' }, t.title),
       h('span', { class: 'task-meta' },

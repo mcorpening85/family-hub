@@ -2,7 +2,7 @@
 import { h, uid, today, toast } from './util.js';
 import { db, conn, setConn, kids, person, balance, adjustStars, put, del, apply, setting,
   setSettings, cancelRedemption, sync } from './store.js';
-import { state, go, render } from './nav.js';
+import { state, go, render, unlocked } from './nav.js';
 import { formDialog, confirmDialog, pinPad, COLORS, avatar } from './ui.js';
 import { searchPlace } from './weather.js';
 
@@ -85,7 +85,8 @@ function taskForm(t) {
     title: isNew ? 'New task or habit' : 'Edit task',
     fields: [
       { name: 'title', label: 'What', value: t.title, placeholder: 'Feed the dog' },
-      { name: 'icon', label: 'Picture', type: 'emoji', value: t.icon },
+      { name: 'icon', label: 'Picture', type: 'emoji', value: t.icon,
+        show: (v) => v.personId === '*' || (person(v.personId) || {}).role === 'kid' },   // adults' tasks are text only
       { name: 'personId', label: 'Who', type: 'select', value: t.personId,
         options: [...db.people.map((p) => ({ value: p.id, label: `${p.avatar} ${p.name}` })),
           ...(isNew && kids().length > 1 ? [{ value: '*', label: '👧👧 All kids' }] : [])] },
@@ -107,6 +108,30 @@ function taskForm(t) {
   });
 }
 
+// Quick add from a person's column on the main screen. No PIN needed, so a task
+// added this way only earns stars when the parent area is unlocked (or has no PIN).
+export function quickTaskForm(p) {
+  const kid = p.role === 'kid';
+  const canStar = kid && (!setting('pin') || unlocked());
+  const hr = new Date().getHours();
+  formDialog({
+    title: 'New task for ' + p.name,
+    saveLabel: 'Add',
+    fields: [
+      { name: 'title', label: 'What', placeholder: kid ? 'Feed the dog' : 'Book the dentist' },
+      kid && { name: 'icon', label: 'Picture', type: 'emoji', value: '⭐' },
+      { name: 'when', label: 'Time of day', type: 'select', value: hr < 12 ? 'morning' : hr < 17 ? 'day' : 'evening', options: WHEN },
+      { name: 'repeat', label: 'How often', type: 'select', value: 'once', options: REPEAT.filter((r) => r.value !== 'weekly') },
+      canStar && { name: 'stars', label: 'Stars earned', type: 'number', value: 1, min: 0 },
+    ].filter(Boolean),
+    onSave: (v) => {
+      if (!v.title) return false;
+      put('tasks', { id: uid(), title: v.title, icon: v.icon || '⭐', personId: p.id, stars: canStar ? v.stars : 0,
+        repeat: v.repeat, days: '', date: today(), when: v.when, active: true });
+    },
+  });
+}
+
 function tasksTab() {
   return h('div', {},
     h('button', { class: 'btn primary', onclick: () => taskForm() }, '+ New task or habit'),
@@ -116,7 +141,7 @@ function tasksTab() {
         h('h2', {}, `${p.avatar} ${p.name}`),
         list.length ? list.map((t) => h('button', { class: 'row link' + (t.active ? '' : ' inactive'),
           onclick: () => taskForm(t) },
-          h('span', { class: 'row-icon' }, t.icon), h('span', { class: 'grow' }, t.title),
+          p.role === 'kid' && h('span', { class: 'row-icon' }, t.icon), h('span', { class: 'grow' }, t.title),
           h('small', { class: 'muted' }, repeatLabel(t) + (t.active ? '' : ' · paused')),
           p.role === 'kid' && h('span', {}, '⭐ ' + t.stars))) : h('p', { class: 'muted' }, 'No tasks yet'));
     }));
