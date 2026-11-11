@@ -5,6 +5,7 @@ import { db, kids, person, tasksFor, completion, toggleTask, streak, balance, is
 import { state, go, render } from './nav.js';
 import { confirmDialog, formDialog, avatar, party } from './ui.js';
 import { getWeather } from './weather.js';
+import { kidFinished } from './notify.js';
 import { quickTaskForm, setUpWeather } from './views-parent.js';
 
 const eventTime = (e) => (e.allDay ? 'All day' : fmtTime(new Date(e.start)));
@@ -147,6 +148,7 @@ function taskRow(t, p) {
       const before = balance(p.id);
       const r = toggleTask(t);
       if (!r.done) return;
+      kidFinished(p, t, r);
       celebrate(document.querySelector(`[data-task="${t.id}"] .check`));
       // Milestones: a streak bonus, finishing everything, or enough stars for a reward.
       const lines = [];

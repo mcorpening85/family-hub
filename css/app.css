@@ -459,6 +459,20 @@ input[type=checkbox] { width: 30px; height: 30px; accent-color: var(--good); fle
 .qr-foot { display: flex; align-items: center; gap: 12px; font-variant-numeric: tabular-nums; }
 .add-device .qr-warn { font-size: .85rem; padding: 10px 12px; border-radius: 12px; background: #fff6e0; color: var(--star-ink); }
 
+/* ---- phone notifications ---- */
+.notify-setup { display: flex; flex-direction: column; gap: 12px; }
+.notify-setup > p { color: var(--muted); font-weight: 500; line-height: 1.45; }
+.notify-setup .steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; line-height: 1.4; font-weight: 500; }
+.notify-setup a { color: var(--brand-deep); font-weight: 700; }
+.topic { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-sm);
+  background: var(--surface); }
+.topic code { flex: 1; font: 700 1.1rem/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .02em;
+  user-select: all; -webkit-user-select: all; overflow-wrap: anywhere; }
+.topic-qr summary { cursor: pointer; font-weight: 600; color: var(--muted); padding: 4px 0; }
+.topic-qr .qr-code { margin: 8px auto 0; width: min(220px, 60vw); }
+.notify-setup .actions .btn { flex: 1; }
+.notify-setup .qr-warn { font-size: .85rem; padding: 10px 12px; border-radius: 12px; background: #fff6e0; color: var(--star-ink); }
+
 /* ---- welcome / setup ---- */
 .welcome { margin: auto; width: min(560px, 100%); padding: 24px; display: flex; flex-direction: column;
   gap: 16px; align-items: stretch; text-align: center; max-height: 100%; overflow-y: auto; }

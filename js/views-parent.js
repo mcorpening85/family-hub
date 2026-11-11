@@ -5,6 +5,7 @@ import { db, conn, setConn, kids, person, balance, adjustStars, put, del, apply,
 import { state, go, render, unlocked, unlock } from './nav.js';
 import { formDialog, confirmDialog, pinPad, COLORS, avatar, modal } from './ui.js';
 import { searchPlace } from './weather.js';
+import { newTopic, notifyOn, send, topicUrl } from './notify.js';
 
 const REPEAT = [
   { value: 'daily', label: 'Every day' },
@@ -385,6 +386,53 @@ function addDevice(link) {
     '', () => clearInterval(timer));
 }
 
+// ---------- Phone notifications (ntfy) ----------
+function notificationsSetup() {
+  let topic = setting('ntfyTopic') || newTopic();
+  let on = notifyOn();
+  const body = h('div', { class: 'notify-setup' });
+  const copy = (text) => navigator.clipboard.writeText(text)
+    .then(() => toast('Copied'), () => prompt('Copy this', text));
+  const save = (extra) => setSettings({ ntfyTopic: topic, ...extra });
+
+  const draw = async () => {
+    let qr = null;
+    try { qr = qrSvg(await loadQr(), topicUrl(topic)); } catch (e) { /* the name still works */ }
+    body.replaceChildren(
+      h('p', {}, 'Get an alert on your phone each time a kid finishes a task. It uses ntfy, a free app with no account to make.'),
+      h('ol', { class: 'steps' },
+        h('li', {}, 'Install the ntfy app on each parent’s phone. ',
+          h('a', { href: 'https://docs.ntfy.sh/subscribe/phone/', target: '_blank', rel: 'noopener' }, 'Where to get it')),
+        h('li', {}, 'In the app, tap ', h('strong', {}, '+'), ' and subscribe to this topic name (leave the server as ntfy.sh):'),
+      ),
+      h('div', { class: 'topic' },
+        h('code', {}, topic),
+        h('button', { class: 'btn small', type: 'button', onclick: () => copy(topic) }, 'Copy')),
+      qr && h('details', { class: 'topic-qr' },
+        h('summary', {}, 'Or scan to open the topic on your phone'), qr),
+      h('div', { class: 'actions' },
+        on ? h('button', { class: 'btn', type: 'button', onclick: async () => {
+          on = false; await save({ ntfyOn: '' }); toast('Phone notifications off'); draw();
+        } }, 'Turn off')
+          : h('button', { class: 'btn primary', type: 'button', onclick: async () => {
+            on = true; await save({ ntfyOn: '1' }); toast('Phone notifications on'); draw();
+          } }, 'Turn on'),
+        h('button', { class: 'btn', type: 'button', onclick: () => send({
+          topic, title: 'Family Hub test', message: 'Notifications are working. You’ll get one each time a kid finishes a task.',
+          tags: ['bell'] }, topic).then(() => toast('Test sent. Check your phone.'), () => toast('Couldn’t reach ntfy. Check the internet connection.')) },
+          'Send a test'),
+        h('button', { class: 'btn', type: 'button', onclick: async () => {
+          if (!(await confirmDialog('Make a new topic name? Each phone will need to subscribe again.', 'New name', 'Keep'))) return;
+          topic = newTopic();
+          await save({});
+          draw();
+        } }, 'New topic name')),
+      h('p', { class: 'qr-warn' }, '🔒 Alerts pass through ntfy’s free server and show the kid’s name and the task. Anyone who knows this topic name could read them, so keep it to your family.'));
+  };
+  draw();
+  modal('Phone notifications', body);
+}
+
 function settingsTab() {
   const link = conn.demo ? '' : location.origin + location.pathname + '#c=' +
     btoa(JSON.stringify({ url: conn.url, key: conn.key }));
@@ -400,6 +448,8 @@ function settingsTab() {
           { name: 'streakEvery', label: 'Every how many days in a row', type: 'number', value: setting('streakEvery', 7), min: 1 },
           { name: 'streakBonus', label: 'Bonus stars (0 = off)', type: 'number', value: setting('streakBonus', 5), min: 0 }],
         onSave: (v) => { setSettings(v); } })),
+    row('Phone notifications', notifyOn() ? 'On: you get an alert when a kid finishes a task' : 'Off',
+      notifyOn() ? 'Change' : 'Set up', notificationsSetup),
     !conn.demo && row('Google calendars', 'Choose which calendars appear', 'Choose', calendarsForm),
     !conn.demo && row('Add another device', 'Scan a QR code or open a link on a phone or tablet to connect it', 'Connect',
       () => addDevice(link)),
