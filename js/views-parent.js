@@ -2,7 +2,7 @@
 import { h, uid, today, toast } from './util.js';
 import { db, conn, setConn, kids, person, balance, adjustStars, put, del, apply, setting,
   setSettings, cancelRedemption, sync } from './store.js';
-import { state, go, render, unlocked, unlock } from './nav.js';
+import { state, go, render, unlocked } from './nav.js';
 import { formDialog, confirmDialog, pinPad, COLORS, avatar, modal } from './ui.js';
 import { searchPlace } from './weather.js';
 import { newTopic, notifyOn, send, topicUrl } from './notify.js';
@@ -21,24 +21,6 @@ const WHEN = [
 const repeatLabel = (t) => t.repeat === 'weekly'
   ? String(t.days || '').split(',').filter(Boolean).map((d) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(' ')
   : t.repeat === 'once' ? 'Once' + (t.date ? ' · ' + t.date : '') : REPEAT.find((r) => r.value === t.repeat).label;
-
-// Ask for the PIN (if one is set), then open the parent area. Resolves true once it is open.
-export async function openParent(extra = {}) {
-  const pin = setting('pin');
-  if (pin && !unlocked()) {
-    const entered = await pinPad();
-    if (entered == null) return false;
-    if (entered !== pin) return toast('Wrong PIN'), false;
-    unlock();
-  }
-  go('parent', extra);
-  return true;
-}
-
-// From the home screen's "Set up weather" button.
-export async function setUpWeather() {
-  if (await openParent({ parentTab: 'settings' })) weatherForm();
-}
 
 export function parentView() {
   const tab = state.parentTab || 'stars';
@@ -258,50 +240,27 @@ export async function changePin() {
   return true;
 }
 
-const here = () => new Promise((resolve, reject) =>
-  navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 15000, maximumAge: 10 * 60 * 1000 }));
-
-function useWeatherPlace(lat, lon, place, tempUnit) {
-  localStorage.removeItem('fh-weather');
-  return setSettings({ lat, lon, place, tempUnit });
-}
-
 function weatherForm() {
-  const canLocate = 'geolocation' in navigator && window.isSecureContext;
   formDialog({
-    title: 'Weather location', saveLabel: 'Save',
+    title: 'Weather location', saveLabel: 'Search',
     fields: [
-      canLocate && { name: 'how', label: 'Where', type: 'select', value: 'search',
-        options: [{ value: 'search', label: 'Search for a town' }, { value: 'here', label: 'Use this tablet’s location' }] },
-      { name: 'place', label: 'Town or city', placeholder: 'Charlotte', show: (v) => v.how !== 'here' },
+      { name: 'place', label: 'Town or city', placeholder: 'Charlotte' },
       { name: 'unit', label: 'Temperature', type: 'select', value: setting('tempUnit', 'fahrenheit'),
         options: [{ value: 'fahrenheit', label: '°F' }, { value: 'celsius', label: '°C' }] },
-    ].filter(Boolean),
+    ],
     onSave: async (v) => {
-      if (v.how === 'here') {
-        try {
-          const pos = await here();
-          await useWeatherPlace(pos.coords.latitude.toFixed(3), pos.coords.longitude.toFixed(3), 'This tablet’s location', v.unit);
-          return;
-        } catch (e) {
-          return toast('Couldn’t get this tablet’s location. Search for your town instead.'), false;
-        }
-      }
-      if (!v.place) {
-        if (!setting('lat')) return toast('Type your town or city'), false;
-        return setSettings({ tempUnit: v.unit });
-      }
+      if (!v.place) return setSettings({ tempUnit: v.unit });
       let found = [];
       try { found = await searchPlace(v.place); } catch (e) { /* offline */ }
       if (!found.length) return toast('Couldn’t find that place'), false;
-      if (found.length === 1) return useWeatherPlace(found[0].lat, found[0].lon, found[0].label, v.unit);
       setTimeout(() => formDialog({
         title: 'Which one?', saveLabel: 'Use this',
         fields: [{ name: 'i', label: 'Place', type: 'select', value: 0,
           options: found.map((p, i) => ({ value: i, label: p.label })) }],
         onSave: (x) => {
           const p = found[Number(x.i)];
-          useWeatherPlace(p.lat, p.lon, p.label, v.unit);
+          localStorage.removeItem('fh-weather');
+          setSettings({ lat: p.lat, lon: p.lon, place: p.label, tempUnit: v.unit });
         },
       }));
     },

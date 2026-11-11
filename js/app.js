@@ -5,7 +5,7 @@ import { db, conn, setConn, sync, loadCache, onChange, setting, setSettings, app
 import { state, go, render, setRenderer, unlocked, unlock } from './nav.js';
 import { homeView, personView, mealsView, listsView } from './views-main.js';
 import { calendarView } from './views-calendar.js';
-import { parentView, personForm, changePin, openParent } from './views-parent.js';
+import { parentView, personForm, changePin } from './views-parent.js';
 import { pinPad, avatar } from './ui.js';
 
 const root = document.getElementById('app');
@@ -48,6 +48,16 @@ document.addEventListener('pointerup', (e) => {
 }, true);
 const FULL_ICON = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>';
 const EXIT_ICON = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg>';
+
+async function openParent() {
+  const pin = setting('pin');
+  if (!pin || unlocked()) return go('parent');
+  const entered = await pinPad();
+  if (entered == null) return;
+  if (entered !== pin) return toast('Wrong PIN');
+  unlock();
+  go('parent');
+}
 
 // ---------- screens before the main app ----------
 function connectScreen() {
@@ -146,7 +156,7 @@ setRenderer(() => {
       canFull && h('button', { class: 'nav-push nav-full', onclick: toggleFull, 'aria-pressed': String(isFull()) },
         h('span', { class: 'nav-icon', innerHTML: isFull() ? EXIT_ICON : FULL_ICON }),
         h('span', {}, isFull() ? 'Exit full' : 'Full screen')),
-      h('button', { class: (active === 'parent' ? 'on' : '') + (canFull ? '' : ' nav-push'), onclick: () => openParent() },
+      h('button', { class: (active === 'parent' ? 'on' : '') + (canFull ? '' : ' nav-push'), onclick: openParent },
         h('span', { class: 'nav-icon' }, '🔒'), h('span', {}, 'Parents'))),
     main);
   main.scrollTop = keepScroll;
