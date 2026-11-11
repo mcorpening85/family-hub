@@ -237,7 +237,7 @@ export function toggleTask(task) {
       ref: 'streak:' + comp.id, ts } });
   }
   apply(ops);
-  return { done: true, stars: isKid ? task.stars : 0, bonus };
+  return { done: true, stars: isKid ? task.stars : 0, bonus, streak: n };
 }
 
 // ---------- stars & rewards ----------

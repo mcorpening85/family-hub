@@ -6,7 +6,7 @@ import { state, go, render, setRenderer, unlocked, unlock } from './nav.js';
 import { homeView, personView, mealsView, listsView } from './views-main.js';
 import { calendarView } from './views-calendar.js';
 import { parentView, personForm, changePin } from './views-parent.js';
-import { pinPad } from './ui.js';
+import { pinPad, avatar } from './ui.js';
 
 const root = document.getElementById('app');
 
@@ -59,7 +59,7 @@ function setupScreen() {
     h('h1', {}, 'Who’s in the family?'),
     h('div', { class: 'card' },
       db.people.map((p) => h('button', { class: 'row link', onclick: () => personForm(p) },
-        h('span', { class: 'avatar small', style: { '--c': p.color } }, p.avatar),
+        avatar(p, 'small'),
         h('span', { class: 'grow' }, p.name), h('small', { class: 'muted' }, p.role === 'kid' ? 'Kid' : 'Parent'))),
       h('button', { class: 'btn', onclick: () => personForm() }, '+ Add family member')),
     h('label', { class: 'field inline' }, h('span', {}, 'Start the kids off with example chores and rewards'),

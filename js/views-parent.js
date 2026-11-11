@@ -3,7 +3,7 @@ import { h, uid, today, toast } from './util.js';
 import { db, conn, setConn, kids, person, balance, adjustStars, put, del, apply, setting,
   setSettings, cancelRedemption, sync } from './store.js';
 import { state, go, render } from './nav.js';
-import { formDialog, confirmDialog, pinPad, COLORS } from './ui.js';
+import { formDialog, confirmDialog, pinPad, COLORS, avatar } from './ui.js';
 import { searchPlace } from './weather.js';
 
 const REPEAT = [
@@ -56,7 +56,7 @@ function starsTab() {
   return h('div', {},
     h('div', { class: 'kid-cards' }, kids().map((p) =>
       h('div', { class: 'card kid-card', style: { '--c': p.color } },
-        h('div', { class: 'avatar' }, p.avatar), h('strong', {}, p.name),
+        avatar(p), h('strong', {}, p.name),
         h('div', { class: 'star-count' }, '⭐ ' + balance(p.id)),
         h('div', { class: 'actions' },
           h('button', { class: 'btn primary', onclick: () => starForm(p, 1) }, '+ Give'),
@@ -166,7 +166,8 @@ export function personForm(p, onDone) {
       { name: 'name', label: 'Name', value: p.name },
       { name: 'role', label: 'Role', type: 'select', value: p.role,
         options: [{ value: 'kid', label: 'Kid (earns stars)' }, { value: 'parent', label: 'Parent' }] },
-      { name: 'avatar', label: 'Picture', type: 'emoji', value: p.avatar },
+      { name: 'photo', label: 'Photo', type: 'photo', value: p.photo || '' },
+      { name: 'avatar', label: 'Or pick a picture', type: 'emoji', value: p.avatar, show: (v) => !v.photo },
       { name: 'color', label: 'Colour', type: 'color', value: p.color },
       !conn.demo && db.calendars.length && { name: 'calendarId', label: 'Their Google calendar', type: 'select',
         value: p.calendarId || '',
@@ -197,7 +198,7 @@ function familyTab() {
     h('button', { class: 'btn primary', onclick: () => personForm() }, '+ Add family member'),
     h('div', { class: 'card' }, db.people.map((p) =>
       h('button', { class: 'row link', onclick: () => personForm(p) },
-        h('span', { class: 'avatar small', style: { '--c': p.color } }, p.avatar),
+        avatar(p, 'small'),
         h('span', { class: 'grow' }, p.name),
         h('small', { class: 'muted' }, p.role === 'kid' ? 'Kid' : 'Parent')))));
 }

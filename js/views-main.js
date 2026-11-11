@@ -3,7 +3,7 @@ import { h, today, addDays, fmtDay, fmtTime, parseYmd, weekStart, celebrate, toa
 import { db, kids, person, tasksFor, completion, toggleTask, streak, balance, isRepeating,
   rewardsFor, redeem, eventsOn, eventsFor, sharedEvents, eventColor, setting, setSettings, put, del, apply, isDue } from './store.js';
 import { state, go, render } from './nav.js';
-import { confirmDialog, formDialog } from './ui.js';
+import { confirmDialog, formDialog, avatar, party } from './ui.js';
 import { getWeather } from './weather.js';
 
 const eventTime = (e) => (e.allDay ? 'All day' : fmtTime(new Date(e.start)));
@@ -44,7 +44,7 @@ export function homeView() {
         const done = tasks.filter((t) => completion(t, day)).length;
         return h('section', { class: 'col', style: { '--c': p.color } },
           h('button', { class: 'col-head', onclick: () => go('person', { personId: p.id, tab: 'today' }) },
-            h('div', { class: 'avatar small' }, p.avatar),
+            avatar(p, 'small'),
             h('div', { class: 'grow' },
               h('div', { class: 'col-name' }, p.name),
               h('div', { class: 'pills' },
@@ -70,7 +70,7 @@ export function personView() {
   return h('div', { class: 'person-page', style: { '--c': p.color } },
     h('header', { class: 'person-top' },
       h('button', { class: 'back', onclick: () => go('home'), 'aria-label': 'Back' }, '←'),
-      h('div', { class: 'avatar big' }, p.avatar),
+      avatar(p, 'big'),
       h('h1', {}, p.name),
       isKid && h('div', { class: 'star-big', id: 'star-total' }, '⭐ ' + balance(p.id))),
     h('div', { class: 'tabs' }, tabs.map(([id, label]) =>
@@ -104,7 +104,7 @@ function rewardsTab(p) {
           if (!can) return toast(`${r.cost - bal} more stars to go!`);
           if (await confirmDialog(`Spend ${r.cost} ⭐ on ${r.icon} ${r.title}?`, 'Yes!', 'Not yet')) {
             redeem(r, p.id);
-            celebrate(null, '🎉');
+            party(p, `${r.icon} ${r.title}`, ['You earned it, ' + p.name + '! 🎉']);
           }
         } },
         h('div', { class: 'tile-icon' }, r.icon || '🎁'),
@@ -139,11 +139,26 @@ function taskRow(t, p) {
   const n = streak(t);
   return h('button', { class: 'task-row' + (done ? ' done' : ''), 'data-task': t.id,
     onclick: () => {
+      const before = balance(p.id);
       const r = toggleTask(t);
-      if (r.done) {
-        celebrate(document.querySelector(`[data-task="${t.id}"] .check`));
-        if (r.bonus) toast(`🔥 Streak bonus! +${r.bonus} stars`);
+      if (!r.done) return;
+      celebrate(document.querySelector(`[data-task="${t.id}"] .check`));
+      // Milestones: a streak bonus, finishing everything, or enough stars for a reward.
+      const lines = [];
+      let title = '';
+      const all = tasksFor(p.id);
+      if (all.length > 1 && all.every((x) => completion(x, today()))) title = 'All done for today!';
+      if (r.bonus) {
+        if (!title) title = `${r.streak} days in a row!`;
+        else lines.push(`🔥 ${r.streak} days in a row: ${t.title}`);
+        lines.push(`+${r.bonus} bonus stars ⭐`);
       }
+      const after = balance(p.id);
+      rewardsFor(p.id).filter((w) => before < w.cost && after >= w.cost).forEach((w) => {
+        if (!title) title = 'You have enough stars!';
+        lines.push(`You can get ${w.icon} ${w.title}`);
+      });
+      if (title) party(p, title, lines.length ? lines : ['Great job, ' + p.name + '! 🌟']);
     } },
     h('span', { class: 'task-icon' }, t.icon || '⭐'),
     h('span', { class: 'grow' },

@@ -9,6 +9,70 @@ export const EMOJI = ('🪥 🛏️ 👗 👟 🎒 🧸 📚 ✏️ 🎹 🎨 �
   '🎬 🍦 🍕 🍿 🎮 📺 🌙 🎁 🎟️ 🛝 🏊 🎢 🧁 🍪 🛍️ 💵 🎉 ⭐ ❤️ 🌈 ' +
   '👧 👩 👨 👦 👶 🧒 🦄 🐼 🦊 🐰 🐯 🦋 🐸 🐵 🦁 🐙').split(' ');
 
+// A person's picture: their uploaded photo, or their emoji.
+export function avatar(p, size = '') {
+  return h('span', { class: 'avatar ' + size, style: { '--c': p.color } },
+    p.photo ? h('img', { src: p.photo, alt: '' }) : p.avatar);
+}
+
+// Shrink an uploaded photo to a small square so it fits in one sheet cell.
+export function photoToDataUrl(file, px = 160) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const side = Math.min(img.width, img.height);
+      const c = document.createElement('canvas');
+      c.width = c.height = px;
+      c.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, px, px);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', 0.72));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read that photo')); };
+    img.src = url;
+  });
+}
+
+// Full-screen party for milestones. lines: extra messages under the title.
+export function party(p, title, lines = []) {
+  document.querySelectorAll('.party').forEach((el) => el.remove());
+  const colors = ['#ff5d8f', '#ff9f1c', '#ffd23f', '#3ccf91', '#2ec4f1', '#5b7cfa', '#a66bff'];
+  const bits = Array.from({ length: 90 }, (_, i) => h('i', { class: 'confetti', style: {
+    left: Math.random() * 100 + '%', background: colors[i % colors.length],
+    animationDelay: Math.random() * 1.2 + 's', animationDuration: 2.2 + Math.random() * 2 + 's',
+    '--spin': (Math.random() * 720 - 360) + 'deg', '--drift': (Math.random() * 160 - 80) + 'px',
+    width: 8 + Math.random() * 8 + 'px', height: 10 + Math.random() * 12 + 'px' } }));
+  const el = h('div', { class: 'party', style: { '--c': p.color }, onclick: () => el.remove() },
+    bits,
+    h('div', { class: 'party-card' },
+      avatar(p, 'huge'),
+      h('div', { class: 'party-title' }, title),
+      lines.map((l) => h('div', { class: 'party-line' }, l)),
+      h('div', { class: 'party-hint' }, 'Tap to keep going')));
+  document.body.append(el);
+  setTimeout(() => el.remove(), 7000);
+  fanfare();
+}
+
+let actx;
+function fanfare() {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    [523, 659, 784, 1047, 784, 1047].forEach((f, i) => {
+      const o = actx.createOscillator();
+      const g = actx.createGain();
+      o.type = 'triangle';
+      o.frequency.value = f;
+      const t = actx.currentTime + i * 0.13;
+      g.gain.setValueAtTime(0.16, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+      o.connect(g).connect(actx.destination);
+      o.start(t);
+      o.stop(t + 0.32);
+    });
+  } catch (e) { /* sound is optional */ }
+}
+
 export function modal(title, body, cls = '') {
   const d = h('dialog', { class: 'modal ' + cls });
   const close = () => {
@@ -69,6 +133,21 @@ export function formDialog({ title, fields, onSave, onDelete, saveLabel = 'Save'
             onclick: () => { emojiOpen = !emojiOpen; build(); } }, vals[f.name] || '➕'),
           emojiOpen && h('div', { class: 'emoji-grid' }, EMOJI.map((e) =>
             h('button', { type: 'button', onclick: () => { emojiOpen = false; set(e, true); } }, e))));
+      case 'photo': {
+        const input = h('input', { type: 'file', accept: 'image/*', hidden: true,
+          onchange: async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            try { set(await photoToDataUrl(file), true); } catch (err) { /* keep the old one */ }
+          } });
+        return h('div', { class: 'photo-field' },
+          h('span', { class: 'avatar', style: { '--c': vals.color || '#5b7cfa' } },
+            vals[f.name] ? h('img', { src: vals[f.name], alt: '' }) : vals.avatar || '🙂'),
+          input,
+          h('button', { type: 'button', class: 'btn', onclick: () => input.click() },
+            vals[f.name] ? 'Change photo' : 'Upload photo'),
+          vals[f.name] && h('button', { type: 'button', class: 'btn', onclick: () => set('', true) }, 'Remove'));
+      }
       case 'days': {
         const on = String(vals[f.name] || '').split(',').filter(Boolean);
         return h('div', { class: 'days' }, ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) =>
@@ -89,7 +168,7 @@ export function formDialog({ title, fields, onSave, onDelete, saveLabel = 'Save'
     form.replaceChildren();
     for (const f of fields) {
       if (f.show && !f.show(vals)) continue;
-      form.append(h('label', { class: 'field' + (f.type === 'checkbox' ? ' inline' : '') },
+      form.append(h(f.type === 'photo' ? 'div' : 'label', { class: 'field' + (f.type === 'checkbox' ? ' inline' : '') },
         h('span', {}, f.label), control(f)));
     }
     form.append(h('div', { class: 'actions' },

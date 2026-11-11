@@ -5,7 +5,7 @@
  */
 
 var TABLES = {
-  people: ['id', 'name', 'role', 'color', 'avatar', 'calendarId'],
+  people: ['id', 'name', 'role', 'color', 'avatar', 'calendarId', 'photo'],
   tasks: ['id', 'title', 'icon', 'personId', 'stars', 'repeat', 'days', 'date', 'when', 'active'],
   completions: ['id', 'taskId', 'personId', 'date', 'stars', 'ts'],
   starlog: ['id', 'personId', 'delta', 'reason', 'kind', 'ref', 'ts'],
