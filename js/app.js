@@ -3,14 +3,14 @@ import { h, toast, fmtTime, uid, today } from './util.js';
 import { db, conn, setConn, sync, loadCache, onChange, setting, setSettings, apply, kids,
   testConnection, loaded } from './store.js';
 import { state, go, render, setRenderer, unlocked, unlock } from './nav.js';
-import { homeView, personView, mealsView, listsView } from './views-main.js';
+import { homeView, personView, mealsView, listsView, tasksView } from './views-main.js';
 import { calendarView } from './views-calendar.js';
 import { parentView, personForm, changePin } from './views-parent.js';
 import { pinPad } from './ui.js';
 
 const root = document.getElementById('app');
 
-const NAV = [['home', '🏠', 'Home'], ['calendar', '📅', 'Calendar'], ['meals', '🍽️', 'Dinner'],
+const NAV = [['home', '🏠', 'Home'], ['calendar', '📅', 'Calendar'], ['tasks', '✅', 'Tasks'], ['meals', '🍽️', 'Dinner'],
   ['lists', '📝', 'Lists'], ['parent', '🔒', 'Parents']];
 
 async function openParent() {
@@ -94,6 +94,7 @@ function mainView() {
   switch (state.view) {
     case 'person': return personView();
     case 'calendar': return calendarView();
+    case 'tasks': return tasksView();
     case 'meals': return mealsView();
     case 'lists': return listsView();
     case 'parent': return setting('pin') && !unlocked() ? homeView() : parentView();

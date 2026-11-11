@@ -82,28 +82,8 @@ function todayTab(p) {
   return h('div', {}, groups.map(([when, label]) => {
     const list = tasks.filter((t) => (t.when || 'day') === when);
     return list.length ? [h('h2', { class: 'group' }, label),
-      h('div', { class: 'tiles' }, list.map((t) => taskTile(t, p)))] : null;
+      h('div', { class: 'task-list' }, list.map((t) => taskRow(t, p)))] : null;
   }));
-}
-
-function taskTile(t, p) {
-  const done = !!completion(t, today());
-  const n = streak(t);
-  return h('button', { class: 'tile' + (done ? ' done' : ''),
-    onclick: (e) => {
-      const tile = e.currentTarget;
-      const r = toggleTask(t);
-      if (r.done) {
-        celebrate(document.querySelector(`[data-task="${t.id}"]`) || tile);
-        if (r.bonus) toast(`🔥 Streak bonus! +${r.bonus} stars`);
-      }
-    }, 'data-task': t.id },
-    h('div', { class: 'tile-icon' }, t.icon || '⭐'),
-    h('div', { class: 'tile-title' }, t.title),
-    h('div', { class: 'tile-meta' },
-      p.role === 'kid' && t.stars > 0 && h('span', {}, '⭐'.repeat(Math.min(t.stars, 5)) + (t.stars > 5 ? ' ' + t.stars : '')),
-      isRepeating(t) && n >= 2 && h('span', { class: 'streak' }, '🔥 ' + n)),
-    done && h('div', { class: 'tick' }, '✓'));
 }
 
 function rewardsTab(p) {
@@ -149,6 +129,52 @@ function weekTab(p) {
             : h('span', { class: 'dot' + (d < today() ? ' missed' : '') }));
       }),
       h('td', { class: 'streak' }, streak(t) || ''))))));
+}
+
+// ---------------- Tasks board: one column per person ----------------
+export function tasksView() {
+  const day = today();
+  const groups = [['morning', '☀️ Morning'], ['day', '🌤️ Any time'], ['evening', '🌙 Evening']];
+  return h('div', { class: 'page board-page' },
+    h('header', { class: 'page-top' }, h('h1', {}, '✅ Today’s tasks'),
+      h('span', { class: 'muted' }, fmtDay(day))),
+    h('div', { class: 'board' }, db.people.map((p) => {
+      const tasks = tasksFor(p.id, day);
+      const done = tasks.filter((t) => completion(t, day)).length;
+      return h('section', { class: 'col', style: { '--c': p.color } },
+        h('button', { class: 'col-head', onclick: () => go('person', { personId: p.id, tab: 'today' }) },
+          h('div', { class: 'avatar small' }, p.avatar),
+          h('div', { class: 'grow' },
+            h('div', { class: 'col-name' }, p.name),
+            h('div', { class: 'pills' },
+              h('span', { class: 'pill' }, `✓ ${done}/${tasks.length}`),
+              p.role === 'kid' && h('span', { class: 'pill star' }, '⭐ ' + balance(p.id))))),
+        h('div', { class: 'progress' }, h('div', { style: { width: (tasks.length ? (done / tasks.length) * 100 : 0) + '%' } })),
+        tasks.length ? groups.map(([when, label]) => {
+          const list = tasks.filter((t) => (t.when || 'day') === when);
+          return list.length ? [h('h3', {}, label), list.map((t) => taskRow(t, p))] : null;
+        }) : h('p', { class: 'muted col-empty' }, 'Nothing to do today 🌈'));
+    })));
+}
+
+function taskRow(t, p) {
+  const done = !!completion(t, today());
+  const n = streak(t);
+  return h('button', { class: 'task-row' + (done ? ' done' : ''), 'data-task': t.id,
+    onclick: () => {
+      const r = toggleTask(t);
+      if (r.done) {
+        celebrate(document.querySelector(`[data-task="${t.id}"] .check`));
+        if (r.bonus) toast(`🔥 Streak bonus! +${r.bonus} stars`);
+      }
+    } },
+    h('span', { class: 'task-icon' }, t.icon || '⭐'),
+    h('span', { class: 'grow' },
+      h('span', { class: 'task-title' }, t.title),
+      h('span', { class: 'task-meta' },
+        p.role === 'kid' && t.stars > 0 && h('span', {}, '⭐ ' + t.stars),
+        isRepeating(t) && n >= 2 && h('span', { class: 'streak' }, '🔥 ' + n))),
+    h('span', { class: 'check' }, done ? '✓' : ''));
 }
 
 // ---------------- Meals ----------------
