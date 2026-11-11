@@ -27,34 +27,37 @@ export function homeView() {
   const tomorrow = eventsOn(addDays(day, 1));
   const dinner = db.meals.find((m) => m.id === day);
 
+  const groups = [['morning', '☀️ Morning'], ['day', '🌤️ Any time'], ['evening', '🌙 Evening']];
   return h('div', { class: 'home' },
     h('header', { class: 'home-top' },
-      h('div', {},
-        h('div', { class: 'clock', id: 'clock' }, fmtTime(now)),
-        h('div', { class: 'date' }, fmtDay(day))),
+      h('div', { class: 'clock', id: 'clock' }, fmtTime(now)),
+      h('div', { class: 'date' }, fmtDay(day)),
       weather),
-    h('div', { class: 'home-grid' },
-      h('section', { class: 'card agenda', onclick: () => go('calendar') },
-        h('h2', {}, '📅 Today'),
-        todays.length ? todays.map(eventRow) : h('p', { class: 'muted' }, 'Nothing on the calendar today'),
-        tomorrow.length ? [h('h3', {}, 'Tomorrow'), tomorrow.slice(0, 4).map(eventRow)] : null,
+    h('div', { class: 'board' },
+      h('section', { class: 'col agenda', onclick: () => go('calendar') },
+        h('div', { class: 'col-name' }, '📅 Today'),
+        todays.length ? todays.map(eventRow) : h('p', { class: 'muted' }, 'Nothing on the calendar'),
+        h('h3', {}, 'Tomorrow'),
+        tomorrow.length ? tomorrow.slice(0, 5).map(eventRow) : h('p', { class: 'muted' }, 'Nothing planned'),
         h('div', { class: 'dinner', onclick: (e) => { e.stopPropagation(); go('meals'); } },
-          h('span', {}, '🍽️ Dinner'), h('strong', {}, dinner && dinner.meal ? dinner.meal : 'Not planned yet'))),
-      h('section', { class: 'people' }, db.people.map(personCard))));
-}
-
-function personCard(p) {
-  const tasks = tasksFor(p.id);
-  const done = tasks.filter((t) => completion(t, today())).length;
-  const pct = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
-  return h('button', { class: 'person-card', style: { '--c': p.color },
-    onclick: () => go('person', { personId: p.id, tab: 'today' }) },
-    h('div', { class: 'avatar' }, p.avatar),
-    h('div', { class: 'person-name' }, p.name),
-    p.role === 'kid' && h('div', { class: 'star-count' }, '⭐ ' + balance(p.id)),
-    h('div', { class: 'progress' }, h('div', { style: { width: pct + '%' } })),
-    h('div', { class: 'progress-label' },
-      !tasks.length ? 'Nothing to do today' : done === tasks.length ? 'All done! 🎉' : `${done} of ${tasks.length} done`));
+          h('span', {}, '🍽️ Dinner tonight'), h('strong', {}, dinner && dinner.meal ? dinner.meal : 'Not planned yet'))),
+      db.people.map((p) => {
+        const tasks = tasksFor(p.id, day);
+        const done = tasks.filter((t) => completion(t, day)).length;
+        return h('section', { class: 'col', style: { '--c': p.color } },
+          h('button', { class: 'col-head', onclick: () => go('person', { personId: p.id, tab: 'today' }) },
+            h('div', { class: 'avatar small' }, p.avatar),
+            h('div', { class: 'grow' },
+              h('div', { class: 'col-name' }, p.name),
+              h('div', { class: 'pills' },
+                h('span', { class: 'pill' }, `✓ ${done}/${tasks.length}`),
+                p.role === 'kid' && h('span', { class: 'pill star' }, '⭐ ' + balance(p.id))))),
+          h('div', { class: 'progress' }, h('div', { style: { width: (tasks.length ? (done / tasks.length) * 100 : 0) + '%' } })),
+          tasks.length ? groups.map(([when, label]) => {
+            const list = tasks.filter((t) => (t.when || 'day') === when);
+            return list.length ? [h('h3', {}, label), list.map((t) => taskRow(t, p))] : null;
+          }) : h('p', { class: 'muted col-empty' }, 'Nothing to do today 🌈'));
+      })));
 }
 
 // ---------------- Person ----------------
@@ -129,32 +132,6 @@ function weekTab(p) {
             : h('span', { class: 'dot' + (d < today() ? ' missed' : '') }));
       }),
       h('td', { class: 'streak' }, streak(t) || ''))))));
-}
-
-// ---------------- Tasks board: one column per person ----------------
-export function tasksView() {
-  const day = today();
-  const groups = [['morning', '☀️ Morning'], ['day', '🌤️ Any time'], ['evening', '🌙 Evening']];
-  return h('div', { class: 'page board-page' },
-    h('header', { class: 'page-top' }, h('h1', {}, '✅ Today’s tasks'),
-      h('span', { class: 'muted' }, fmtDay(day))),
-    h('div', { class: 'board' }, db.people.map((p) => {
-      const tasks = tasksFor(p.id, day);
-      const done = tasks.filter((t) => completion(t, day)).length;
-      return h('section', { class: 'col', style: { '--c': p.color } },
-        h('button', { class: 'col-head', onclick: () => go('person', { personId: p.id, tab: 'today' }) },
-          h('div', { class: 'avatar small' }, p.avatar),
-          h('div', { class: 'grow' },
-            h('div', { class: 'col-name' }, p.name),
-            h('div', { class: 'pills' },
-              h('span', { class: 'pill' }, `✓ ${done}/${tasks.length}`),
-              p.role === 'kid' && h('span', { class: 'pill star' }, '⭐ ' + balance(p.id))))),
-        h('div', { class: 'progress' }, h('div', { style: { width: (tasks.length ? (done / tasks.length) * 100 : 0) + '%' } })),
-        tasks.length ? groups.map(([when, label]) => {
-          const list = tasks.filter((t) => (t.when || 'day') === when);
-          return list.length ? [h('h3', {}, label), list.map((t) => taskRow(t, p))] : null;
-        }) : h('p', { class: 'muted col-empty' }, 'Nothing to do today 🌈'));
-    })));
 }
 
 function taskRow(t, p) {
