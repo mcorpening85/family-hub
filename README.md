@@ -30,8 +30,8 @@ Sign in to Google as the account that owns (or can edit) the family calendar.
 3. In **Project Settings** (gear icon), check the time zone is yours.
 4. Back in the editor, choose the function `setup` and press **Run**. Approve
    the permissions Google asks for (your sheet and your calendar). It creates
-   the tabs and shows your **family key**. Copy it.
-   (Later: the sheet has a **Family Hub > Show family key** menu.)
+   the tabs, and your **family key** appears in the **Execution log** under
+   the code. Copy it. (To see it again later, run `showKey`.)
 5. **Deploy > New deployment > Web app**. Set *Execute as: Me* and
    *Who has access: Anyone*. Deploy and copy the **Web app URL**
    (ends in `/exec`).

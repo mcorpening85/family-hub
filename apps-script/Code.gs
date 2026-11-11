@@ -26,6 +26,7 @@ function onOpen() {
 /** Run once: creates the tabs and the secret family key. Safe to re-run. */
 function setup() {
   var ss = SpreadsheetApp.getActive();
+  if (!ss) throw new Error('Open this script from inside the Family Hub sheet: Extensions > Apps Script.');
   Object.keys(TABLES).forEach(function (name) {
     var sh = ss.getSheetByName(name) || ss.insertSheet(name);
     var cols = TABLES[name];
@@ -45,9 +46,12 @@ function setup() {
 
 function showKey() {
   var key = PropertiesService.getScriptProperties().getProperty('FAMILY_KEY');
-  SpreadsheetApp.getUi().alert('Family key', key
-    ? 'Your family key is:\n\n' + key + '\n\nType it into the Family Hub app. Keep it private.'
-    : 'Run "Set up sheet" first.', SpreadsheetApp.getUi().ButtonSet.OK);
+  var msg = key ? 'Your family key is: ' + key : 'Run "setup" first.';
+  console.log(msg);   // shows in the Execution log under the code editor
+  try {
+    SpreadsheetApp.getActive().toast(msg, 'Family Hub', 60);
+  } catch (e) { /* no sheet window open: the log above is enough */ }
+  return key;
 }
 
 function doGet() {
