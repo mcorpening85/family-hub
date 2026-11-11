@@ -103,11 +103,15 @@ function mainView() {
 
 setRenderer(() => {
   const keepScroll = document.querySelector('main') ? document.querySelector('main').scrollTop : 0;
+  // Panels that scroll on their own (task columns, the week grid) keep their place across re-renders.
+  const keep = {};
+  document.querySelectorAll('[data-scroll]').forEach((el) => (keep[el.dataset.scroll] = [el.scrollTop, el.scrollLeft]));
   if (!conn) return root.replaceChildren(connectScreen());
   if (!loaded) return root.replaceChildren(h('div', { class: 'welcome' }, h('div', { class: 'welcome-logo spin' }, '⭐'), h('p', {}, 'Loading…')));
   if (!setting('setupDone')) return root.replaceChildren(setupScreen());
   const active = state.view === 'person' ? 'home' : state.view;
-  const main = h('main', {}, mainView());
+  const view = mainView();
+  const main = h('main', { class: view.classList.contains('fill') ? 'fill' : '' }, view);
   root.replaceChildren(
     h('nav', { class: 'nav' }, NAV.map(([id, icon, label]) =>
       h('button', { class: active === id ? 'on' : '',
@@ -115,6 +119,11 @@ setRenderer(() => {
         h('span', { class: 'nav-icon' }, icon), h('span', {}, label)))),
     main);
   main.scrollTop = keepScroll;
+  main.querySelectorAll('[data-scroll]').forEach((el) => {
+    const k = keep[el.dataset.scroll];
+    if (k) [el.scrollTop, el.scrollLeft] = k;
+    else if (el.dataset.scrollTo) el.scrollTop = Number(el.dataset.scrollTo);
+  });
 });
 
 // Re-render on data change, but never under someone who is typing.
