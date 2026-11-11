@@ -1,6 +1,6 @@
 // Month calendar with a day panel; add / edit events.
 import { h, today, ymd, parseYmd, addDays, fmtDay, fmtTime, hm, toast } from './util.js';
-import { db, eventsOn, saveEvent, deleteEvent, setEventAnchor, setting } from './store.js';
+import { db, eventsOn, saveEvent, deleteEvent, setEventAnchor, setting, calendarList, eventColor } from './store.js';
 import { state, go } from './nav.js';
 import { formDialog } from './ui.js';
 
@@ -33,12 +33,12 @@ export function calendarView() {
             (d === today() ? ' today' : '') + (d === sel ? ' sel' : ''),
             onclick: () => go('calendar', { selDay: d }) },
             h('span', { class: 'cal-num' }, parseYmd(d).getDate()),
-            evs.slice(0, 3).map((e) => h('span', { class: 'chip', style: { '--c': e.color || '#5b7cfa' } }, e.title)),
+            evs.slice(0, 3).map((e) => h('span', { class: 'chip', style: { '--c': eventColor(e) } }, e.title)),
             evs.length > 3 && h('span', { class: 'more' }, `+${evs.length - 3} more`));
         })),
       h('aside', { class: 'card day-panel' },
         h('h2', {}, fmtDay(sel)),
-        eventsOn(sel).map((e) => h('button', { class: 'event-row', style: { '--c': e.color || '#5b7cfa' },
+        eventsOn(sel).map((e) => h('button', { class: 'event-row', style: { '--c': eventColor(e) },
           onclick: () => editEvent(e, sel) },
           h('span', { class: 'event-time' }, e.allDay ? 'All day' : fmtTime(new Date(e.start))),
           h('span', {}, e.title, e.recurring ? ' 🔁' : ''))),
@@ -52,7 +52,7 @@ function editEvent(ev, day) {
   }
   const start = ev && !ev.allDay ? new Date(ev.start) : null;
   const end = ev && !ev.allDay ? new Date(ev.end) : null;
-  const writable = db.calendars.filter((c) => c.writable !== false);
+  const writable = calendarList();
   formDialog({
     title: ev ? 'Edit event' : 'New event',
     fields: [
@@ -62,15 +62,15 @@ function editEvent(ev, day) {
       { name: 'endDate', label: 'Until', type: 'date', value: ev && ev.allDay ? ev.end : '', show: (v) => v.allDay },
       { name: 'from', label: 'Starts', type: 'time', value: start ? hm(start) : '09:00', show: (v) => !v.allDay },
       { name: 'to', label: 'Ends', type: 'time', value: end ? hm(end) : '10:00', show: (v) => !v.allDay },
-      !ev && writable.length > 1 && { name: 'calendarId', label: 'Calendar', type: 'select',
-        value: setting('calendarIds').split(',')[0] || writable[0].id,
+      !ev && writable.length > 1 && { name: 'calendarId', label: 'Whose calendar', type: 'select',
+        value: writable.some((c) => c.id === setting('calendarIds').split(',')[0]) ? setting('calendarIds').split(',')[0] : writable[0].id,
         options: writable.map((c) => ({ value: c.id, label: c.name })) },
     ].filter(Boolean),
     onDelete: ev ? () => deleteEvent(ev) : null,
     onSave: (v) => {
       if (!v.title || !v.date) return false;
       const out = { id: ev ? ev.id : '', calendarId: ev ? ev.calendarId : v.calendarId || '',
-        title: v.title, allDay: !!v.allDay, color: ev ? ev.color : calColor(v.calendarId) };
+        title: v.title, allDay: !!v.allDay, color: ev ? ev.color : (writable.find((c) => c.id === v.calendarId) || writable[0] || {}).color };
       if (v.allDay) {
         out.start = v.date;
         out.end = v.endDate && v.endDate > v.date ? v.endDate : v.date;
@@ -85,9 +85,4 @@ function editEvent(ev, day) {
       go('calendar', { selDay: v.date, month: v.date.slice(0, 7) + '-01' });
     },
   });
-}
-
-function calColor(id) {
-  const c = db.calendars.find((x) => x.id === id) || db.calendars[0];
-  return c ? c.color : '#5b7cfa';
 }

@@ -168,7 +168,10 @@ export function personForm(p, onDone) {
         options: [{ value: 'kid', label: 'Kid (earns stars)' }, { value: 'parent', label: 'Parent' }] },
       { name: 'avatar', label: 'Picture', type: 'emoji', value: p.avatar },
       { name: 'color', label: 'Colour', type: 'color', value: p.color },
-    ],
+      !conn.demo && db.calendars.length && { name: 'calendarId', label: 'Their Google calendar', type: 'select',
+        value: p.calendarId || '',
+        options: [{ value: '', label: 'None' }, ...db.calendars.map((c) => ({ value: c.id, label: c.name }))] },
+    ].filter(Boolean),
     onDelete: isNew ? null : () => apply([
       { t: 'del', table: 'people', id: p.id },
       ...db.tasks.filter((t) => t.personId === p.id).map((t) => ({ t: 'del', table: 'tasks', id: t.id })),
@@ -176,6 +179,14 @@ export function personForm(p, onDone) {
     onSave: async (v) => {
       if (!v.name) return false;
       await put('people', { ...v, id: isNew ? uid() : p.id });
+      if (v.calendarId) {   // make sure that calendar is one of the ones being fetched
+        const primary = (db.calendars.find((c) => c.primary) || {}).id;
+        const ids = setting('calendarIds', primary || '').split(',').filter(Boolean);
+        if (!ids.includes(v.calendarId)) {
+          await setSettings({ calendarIds: [...ids, v.calendarId].join(',') });
+          sync().catch(() => {});
+        }
+      }
       if (onDone) onDone();
     },
   });

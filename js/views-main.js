@@ -1,7 +1,7 @@
 // Home, person (tasks / rewards / week), meals and lists screens.
 import { h, today, addDays, fmtDay, fmtTime, parseYmd, weekStart, celebrate, toast, uid } from './util.js';
 import { db, kids, person, tasksFor, completion, toggleTask, streak, balance, isRepeating,
-  rewardsFor, redeem, eventsOn, setting, setSettings, put, del, apply, isDue } from './store.js';
+  rewardsFor, redeem, eventsOn, eventsFor, sharedEvents, eventColor, setting, setSettings, put, del, apply, isDue } from './store.js';
 import { state, go, render } from './nav.js';
 import { confirmDialog, formDialog } from './ui.js';
 import { getWeather } from './weather.js';
@@ -9,7 +9,7 @@ import { getWeather } from './weather.js';
 const eventTime = (e) => (e.allDay ? 'All day' : fmtTime(new Date(e.start)));
 
 function eventRow(e) {
-  return h('div', { class: 'event-row', style: { '--c': e.color || '#5b7cfa' } },
+  return h('div', { class: 'event-row', style: { '--c': eventColor(e) } },
     h('span', { class: 'event-time' }, eventTime(e)), h('span', {}, e.title));
 }
 
@@ -23,8 +23,7 @@ export function homeView() {
       h('div', {}, h('strong', {}, w.temp + '°'), h('small', {}, `${w.hi}° / ${w.lo}°`)));
   });
 
-  const todays = eventsOn(day);
-  const tomorrow = eventsOn(addDays(day, 1));
+  const shared = sharedEvents(day);
   const dinner = db.meals.find((m) => m.id === day);
 
   const groups = [['morning', '☀️ Morning'], ['day', '🌤️ Any time'], ['evening', '🌙 Evening']];
@@ -33,15 +32,14 @@ export function homeView() {
       h('div', { class: 'clock', id: 'clock' }, fmtTime(now)),
       h('div', { class: 'date' }, fmtDay(day)),
       weather),
+    h('div', { class: 'strip' },
+      shared.map((e) => h('button', { class: 'strip-chip', style: { '--c': eventColor(e) }, onclick: () => go('calendar') },
+        h('small', {}, eventTime(e)), ' ', e.title)),
+      h('button', { class: 'strip-chip dinner-chip', onclick: () => go('meals') },
+        h('small', {}, '🍽️ Dinner'), ' ', dinner && dinner.meal ? dinner.meal : 'Not planned')),
     h('div', { class: 'board' },
-      h('section', { class: 'col agenda', onclick: () => go('calendar') },
-        h('div', { class: 'col-name' }, '📅 Today'),
-        todays.length ? todays.map(eventRow) : h('p', { class: 'muted' }, 'Nothing on the calendar'),
-        h('h3', {}, 'Tomorrow'),
-        tomorrow.length ? tomorrow.slice(0, 5).map(eventRow) : h('p', { class: 'muted' }, 'Nothing planned'),
-        h('div', { class: 'dinner', onclick: (e) => { e.stopPropagation(); go('meals'); } },
-          h('span', {}, '🍽️ Dinner tonight'), h('strong', {}, dinner && dinner.meal ? dinner.meal : 'Not planned yet'))),
       db.people.map((p) => {
+        const evs = eventsFor(p, day);
         const tasks = tasksFor(p.id, day);
         const done = tasks.filter((t) => completion(t, day)).length;
         return h('section', { class: 'col', style: { '--c': p.color } },
@@ -53,10 +51,12 @@ export function homeView() {
                 h('span', { class: 'pill' }, `✓ ${done}/${tasks.length}`),
                 p.role === 'kid' && h('span', { class: 'pill star' }, '⭐ ' + balance(p.id))))),
           h('div', { class: 'progress' }, h('div', { style: { width: (tasks.length ? (done / tasks.length) * 100 : 0) + '%' } })),
+          evs.length ? h('div', { class: 'col-events', onclick: () => go('calendar') }, evs.map((e) =>
+            h('div', { class: 'col-event' }, h('small', {}, eventTime(e)), h('span', {}, e.title)))) : null,
           tasks.length ? groups.map(([when, label]) => {
             const list = tasks.filter((t) => (t.when || 'day') === when);
             return list.length ? [h('h3', {}, label), list.map((t) => taskRow(t, p))] : null;
-          }) : h('p', { class: 'muted col-empty' }, 'Nothing to do today 🌈'));
+          }) : h('p', { class: 'muted col-empty' }, evs.length ? 'No tasks today' : 'Nothing to do today 🌈'));
       })));
 }
 

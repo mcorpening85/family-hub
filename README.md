@@ -59,6 +59,11 @@ The app is static files, so any free host works:
 3. First time only: add your family members, choose a parent PIN.
 4. Install it: browser menu > **Add to Home screen**.
 
+If each person has their own Google calendar, open **Parents > Family**, tap
+a person and pick **Their Google calendar**. Their events then appear at the
+top of their column on the main screen and in their colour on the calendar.
+Events from calendars not linked to anyone show in a strip above the columns.
+
 For the other devices, use **Parents > Settings > Add another device > Copy
 link** and open that link on the phone; it connects in one tap.
 

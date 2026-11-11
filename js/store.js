@@ -272,6 +272,23 @@ export function cancelRedemption(r) {
 }
 
 // ---------- calendar ----------
+// Each person can have their own Google calendar (set in Parents > Family).
+// Demo mode fakes one calendar per person plus a shared Family one.
+export const calendarList = () => (conn.demo
+  ? [{ id: 'family', name: 'Family', color: '#5b7cfa' },
+    ...db.people.map((p) => ({ id: 'demo-' + p.id, name: p.name, color: p.color }))]
+  : db.calendars.filter((c) => c.writable !== false));
+export const personCalId = (p) => (conn.demo ? 'demo-' + p.id : p.calendarId || '');
+export const eventOwner = (e) =>
+  db.people.find((p) => personCalId(p) && personCalId(p) === e.calendarId);
+export const eventColor = (e) => {
+  const o = eventOwner(e);
+  return o ? o.color : e.color || '#5b7cfa';
+};
+export const eventsFor = (p, day) =>
+  eventsOn(day).filter((e) => personCalId(p) && e.calendarId === personCalId(p));
+export const sharedEvents = (day) => eventsOn(day).filter((e) => !eventOwner(e));
+
 export function eventsOn(day) {
   return db.events.filter((e) => {
     if (e.allDay) return e.start <= day && day <= (e.end || e.start);
