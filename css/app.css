@@ -447,6 +447,18 @@ input[type=checkbox] { width: 30px; height: 30px; accent-color: var(--good); fle
 .pin-pad button:active { background: var(--brand); color: #fff; transform: translateY(2px);
   box-shadow: 0 0 0 var(--brand-deep); }
 
+/* ---- add another device ---- */
+.add-device { display: flex; flex-direction: column; gap: 14px; }
+.add-device > p { color: var(--muted); font-weight: 500; line-height: 1.45; }
+.add-device .actions .btn { flex: 1; }
+.qr-spot:empty { display: none; }
+.qr-spot { display: flex; flex-direction: column; align-items: center; gap: 10px; animation: fade .2s; }
+.qr-code { width: min(280px, 70vw); aspect-ratio: 1; padding: 6px; background: #fff; border-radius: 18px;
+  border: 2px solid var(--line); box-shadow: 0 3px 0 var(--line); }
+.qr-code svg { display: block; width: 100%; height: 100%; }
+.qr-foot { display: flex; align-items: center; gap: 12px; font-variant-numeric: tabular-nums; }
+.add-device .qr-warn { font-size: .85rem; padding: 10px 12px; border-radius: 12px; background: #fff6e0; color: var(--star-ink); }
+
 /* ---- welcome / setup ---- */
 .welcome { margin: auto; width: min(560px, 100%); padding: 24px; display: flex; flex-direction: column;
   gap: 16px; align-items: stretch; text-align: center; max-height: 100%; overflow-y: auto; }

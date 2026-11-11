@@ -3,7 +3,7 @@ import { h, uid, today, toast } from './util.js';
 import { db, conn, setConn, kids, person, balance, adjustStars, put, del, apply, setting,
   setSettings, cancelRedemption, sync } from './store.js';
 import { state, go, render, unlocked, unlock } from './nav.js';
-import { formDialog, confirmDialog, pinPad, COLORS, avatar } from './ui.js';
+import { formDialog, confirmDialog, pinPad, COLORS, avatar, modal } from './ui.js';
 import { searchPlace } from './weather.js';
 
 const REPEAT = [
@@ -321,6 +321,70 @@ function calendarsForm() {
   });
 }
 
+// ---------- Add another device ----------
+// The QR library is bundled with the app (js/vendor) and loaded only when needed,
+// so the link, which holds the family key, is never sent to a QR website.
+let qrLib;
+function loadQr() {
+  qrLib = qrLib || new Promise((resolve, reject) => {
+    if (window.qrcode) return resolve(window.qrcode);
+    const s = h('script', { src: 'js/vendor/qrcode.js', onload: () => resolve(window.qrcode), onerror: reject });
+    document.head.append(s);
+  }).catch((e) => { qrLib = null; throw e; });
+  return qrLib;
+}
+
+function qrSvg(qrcode, text) {
+  const qr = qrcode(0, 'M');
+  qr.addData(text);
+  qr.make();
+  const n = qr.getModuleCount();
+  const q = 4;   // the white border scanners need
+  let d = '';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) d += `M${c + q} ${r + q}h1v1h-1z`;
+  const box = h('div', { class: 'qr-code', role: 'img', 'aria-label': 'QR code to connect another device' });
+  box.innerHTML = `<svg viewBox="0 0 ${n + 2 * q} ${n + 2 * q}" shape-rendering="crispEdges" aria-hidden="true">` +
+    `<rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#2b2d42"/></svg>`;
+  return box;
+}
+
+const QR_SECONDS = 60;
+function addDevice(link) {
+  const spot = h('div', { class: 'qr-spot' });
+  let timer;
+  const hideQr = () => {
+    clearInterval(timer);
+    spot.replaceChildren();
+    showBtn.hidden = false;
+  };
+  const showQr = async () => {
+    let qrcode;
+    try { qrcode = await loadQr(); } catch (e) { return toast('Couldn’t load the QR code. Use Copy link instead.'); }
+    let left = QR_SECONDS;
+    const count = h('small', { class: 'muted' }, `Hides in ${left}s`);
+    spot.replaceChildren(qrSvg(qrcode, link),
+      h('div', { class: 'qr-foot' }, count, h('button', { class: 'btn small', type: 'button', onclick: hideQr }, 'Hide code')));
+    showBtn.hidden = true;
+    clearInterval(timer);
+    timer = setInterval(() => {
+      if (!spot.isConnected) return clearInterval(timer);
+      left -= 1;
+      if (left <= 0) return hideQr();
+      count.textContent = `Hides in ${left}s`;
+    }, 1000);
+  };
+  const showBtn = h('button', { class: 'btn primary', type: 'button', onclick: showQr }, 'Show QR code');
+  modal('Add another device', h('div', { class: 'add-device' },
+    h('p', {}, 'Scan the code with the new phone or tablet’s camera, or copy the link and open it there. It connects straight away, with no address or key to type.'),
+    h('div', { class: 'actions' },
+      showBtn,
+      h('button', { class: 'btn', type: 'button', onclick: () => navigator.clipboard.writeText(link)
+        .then(() => toast('Link copied'), () => prompt('Copy this link', link)) }, 'Copy link')),
+    spot,
+    h('p', { class: 'qr-warn' }, '🔒 Anyone who scans this code or gets this link can open your family’s hub. Only show it to your own devices.')),
+    '', () => clearInterval(timer));
+}
+
 function settingsTab() {
   const link = conn.demo ? '' : location.origin + location.pathname + '#c=' +
     btoa(JSON.stringify({ url: conn.url, key: conn.key }));
@@ -337,8 +401,8 @@ function settingsTab() {
           { name: 'streakBonus', label: 'Bonus stars (0 = off)', type: 'number', value: setting('streakBonus', 5), min: 0 }],
         onSave: (v) => { setSettings(v); } })),
     !conn.demo && row('Google calendars', 'Choose which calendars appear', 'Choose', calendarsForm),
-    !conn.demo && row('Add another device', 'Open this link on a phone or tablet to connect it', 'Copy link',
-      () => navigator.clipboard.writeText(link).then(() => toast('Link copied'), () => prompt('Copy this link', link))),
+    !conn.demo && row('Add another device', 'Scan a QR code or open a link on a phone or tablet to connect it', 'Connect',
+      () => addDevice(link)),
     row('Connection', conn.demo ? 'Demo mode: data stays on this device only' : 'Connected to your Google Sheet', 'Disconnect',
       async () => {
         if (await confirmDialog('Disconnect this device?' + (conn.demo ? ' Demo data stays saved here.' : ''), 'Disconnect', 'Cancel')) {
