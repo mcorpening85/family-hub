@@ -2,8 +2,8 @@
 import { h, today, addDays, fmtDay, fmtTime, parseYmd, weekStart, celebrate, toast, uid } from './util.js';
 import { db, kids, person, tasksFor, completion, toggleTask, streak, balance, isRepeating,
   rewardsFor, redeem, eventsOn, eventsFor, sharedEvents, eventColor, setting, setSettings, put, del, apply, isDue } from './store.js';
-import { state, go, render } from './nav.js';
-import { confirmDialog, formDialog, avatar, party } from './ui.js';
+import { state, go, render, unlocked, unlock } from './nav.js';
+import { confirmDialog, formDialog, avatar, party, pinPad } from './ui.js';
 import { getWeather } from './weather.js';
 import { kidFinished } from './notify.js';
 import { quickTaskForm, setUpWeather } from './views-parent.js';
@@ -62,8 +62,20 @@ export function homeView() {
               const list = tasks.filter((t) => (t.when || 'day') === when);
               return list.length ? [h('h3', {}, label), list.map((t) => taskRow(t, p))] : null;
             }) : h('p', { class: 'muted col-empty' }, evs.length ? 'No tasks today' : 'Nothing to do today 🌈')),
-          h('button', { class: 'col-add', onclick: () => quickTaskForm(p) }, '+ Add task'));
+          // Phones only (hidden on the wall tablet by CSS), and only for a parent: it asks for the PIN.
+          h('button', { class: 'col-add', onclick: () => addTaskAsParent(p) }, '+ Add task'));
       })));
+}
+
+async function addTaskAsParent(p) {
+  const pin = setting('pin');
+  if (pin && !unlocked()) {
+    const entered = await pinPad('Parent PIN to add a task');
+    if (entered == null) return;
+    if (entered !== pin) return toast('Wrong PIN');
+    unlock();
+  }
+  quickTaskForm(p);
 }
 
 // ---------------- Person ----------------

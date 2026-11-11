@@ -543,6 +543,11 @@ input[type=checkbox] { width: 30px; height: 30px; accent-color: var(--good); fle
   .people { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 }
 
+/* "+ Add task" under each column is for parents on their phones, not the wall tablet. */
+@media (min-width: 561px) {
+  .col-add { display: none; }
+}
+
 /* ---- calmer for anyone who asks for less motion ---- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important;
