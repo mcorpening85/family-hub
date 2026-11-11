@@ -6,7 +6,7 @@ import { state, go, render, unlocked, unlock } from './nav.js';
 import { confirmDialog, formDialog, avatar, party, pinPad } from './ui.js';
 import { getWeather } from './weather.js';
 import { kidFinished } from './notify.js';
-import { quickTaskForm, setUpWeather } from './views-parent.js';
+import { quickTaskForm } from './views-parent.js';
 
 const eventTime = (e) => (e.allDay ? 'All day' : fmtTime(new Date(e.start)));
 
@@ -20,9 +20,7 @@ export function homeView() {
   const day = today();
   const now = new Date();
   const weather = h('div', { class: 'weather' });
-  if (!setting('lat') || !setting('lon')) {
-    weather.append(h('button', { class: 'weather-setup', onclick: setUpWeather }, '🌤️ Set up weather'));
-  } else getWeather().then((w) => {
+  getWeather().then((w) => {
     if (w) weather.append(h('span', { class: 'weather-icon' }, w.icon),
       h('div', {}, h('strong', {}, w.temp + '°'), h('small', {}, `${w.hi}° / ${w.lo}°`)));
   });

@@ -157,10 +157,6 @@ main, .board, .col-body, .tg-scroll, .emoji-grid, .modal, .welcome, .week {
 .weather { display: flex; align-items: center; gap: 12px; }
 .weather-icon { font-size: 2.4rem; line-height: 1; }
 .weather strong { font-size: 1.6rem; display: block; line-height: 1; font-variant-numeric: tabular-nums; }
-.weather-setup { padding: 9px 16px; border-radius: var(--r-pill); font-weight: 700; font-size: .92rem; color: var(--muted);
-  border: 2px dashed var(--line); background: rgba(255, 255, 255, .6);
-  transition: border-color .15s var(--ease), color .15s var(--ease), transform .1s var(--ease); }
-.weather-setup:active { transform: scale(.96); }
 .weather small { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
 .event-row { display: flex; gap: 12px; align-items: baseline; padding: 10px 12px; margin-bottom: 6px; width: 100%;
   text-align: left; border-radius: 12px; border-left: 6px solid var(--c); font-size: .92rem; font-weight: 500;
@@ -503,7 +499,6 @@ input[type=checkbox] { width: 30px; height: 30px; accent-color: var(--good); fle
   .seg button:hover:not(.on) { color: var(--ink); }
   .tg-dayhead:hover { background: var(--surface); }
   .col-add:hover { background: #fff; border-color: var(--c); }
-  .weather-setup:hover { border-color: color-mix(in srgb, var(--brand) 45%, var(--line)); color: var(--brand-deep); }
   .tg-event:hover { background: color-mix(in srgb, var(--c) 34%, #fff); opacity: 1; z-index: 1; }
   .tg-chip:hover { filter: brightness(1.06); }
   .emoji-grid button:hover { background: var(--surface); }
