@@ -168,7 +168,8 @@ export function formDialog({ title, fields, onSave, onDelete, saveLabel = 'Save'
     form.replaceChildren();
     for (const f of fields) {
       if (f.show && !f.show(vals)) continue;
-      form.append(h(f.type === 'photo' ? 'div' : 'label', { class: 'field' + (f.type === 'checkbox' ? ' inline' : '') },
+      const boxed = ['photo', 'emoji', 'color', 'days'].includes(f.type);
+      form.append(h(boxed ? 'div' : 'label', { class: 'field' + (f.type === 'checkbox' ? ' inline' : '') },
         h('span', {}, f.label), control(f)));
     }
     form.append(h('div', { class: 'actions' },
@@ -195,8 +196,10 @@ export function formDialog({ title, fields, onSave, onDelete, saveLabel = 'Save'
   });
   build();
   close = modal(title, form);
+  // Only focus the first box for a mouse and keyboard. On touch tablets (Amazon Silk)
+  // a field focused by script gets no on-screen keyboard, and tapping it then does nothing.
   const first = form.querySelector('input[type=text]');
-  if (first && !first.value) first.focus();
+  if (first && !first.value && matchMedia('(hover: hover) and (pointer: fine)').matches) first.focus();
 }
 
 // Resolves with the 4 digits entered, or null if closed.

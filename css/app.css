@@ -71,7 +71,9 @@ main, .board, .col-body, .tg-scroll, .emoji-grid, dialog.modal, .welcome, .week 
   box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--brand) 16%, transparent); }
 .nav-icon { font-size: 1.9rem; line-height: 1.1; transition: transform .2s var(--spring); }
 .nav button.on .nav-icon { transform: scale(1.08); }
-.nav button:last-child { margin-top: auto; }
+.nav .nav-push { margin-top: auto; }
+.nav-full .nav-icon { display: grid; place-items: center; height: 1.1em; color: var(--muted); }
+.nav-full[aria-pressed=true] .nav-icon { color: var(--brand-deep); }
 
 /* ---- shared pieces ---- */
 .card { background: var(--card); border-radius: var(--r); padding: 18px; margin-bottom: 16px;
@@ -485,7 +487,7 @@ dialog.confirm .actions { justify-content: flex-end; }
   .nav { flex-direction: row; justify-content: space-around; border-right: 0; border-top: 2px solid var(--line);
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); gap: 4px; }
   .nav button { width: auto; flex: 1; padding: 6px 2px; font-size: .7rem; border-radius: 14px; }
-  .nav button:last-child { margin-top: 0; }
+  .nav .nav-push { margin-top: 0; }
   .nav-icon { font-size: 1.5rem; }
   main { padding: 16px; }
   .cal-wrap { grid-template-columns: 1fr; }

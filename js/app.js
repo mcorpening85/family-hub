@@ -1,5 +1,5 @@
 // App shell: connect screen, first-run family setup, navigation, polling.
-import { h, toast, fmtTime, uid, today } from './util.js';
+import { h, toast, fmtTime, uid, today, load, save } from './util.js';
 import { db, conn, setConn, sync, loadCache, onChange, setting, setSettings, apply, kids,
   testConnection, loaded } from './store.js';
 import { state, go, render, setRenderer, unlocked, unlock } from './nav.js';
@@ -11,7 +11,43 @@ import { pinPad, avatar } from './ui.js';
 const root = document.getElementById('app');
 
 const NAV = [['home', '✅', 'Today'], ['calendar', '📅', 'Calendar'], ['meals', '🍽️', 'Dinner'],
-  ['lists', '📝', 'Lists'], ['parent', '🔒', 'Parents']];
+  ['lists', '📝', 'Lists']];
+
+// ---------- full screen ----------
+// Browsers only allow full screen after a tap, so it can't switch on by itself at start-up.
+// Once someone chooses it, the next tap after a reload puts it back, until they leave it.
+const page = document.documentElement;
+const canFull = !!(page.requestFullscreen || page.webkitRequestFullscreen);
+const isFull = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+function enterFull() {
+  const req = page.requestFullscreen || page.webkitRequestFullscreen;
+  try {
+    const p = req.call(page, { navigationUI: 'hide' });
+    if (p && p.catch) p.catch(refused);
+  } catch (e) { refused(); }
+}
+function refused() {
+  save('fh-full', false);   // stop asking on every tap
+  toast('This browser won’t go full screen here.');
+}
+function toggleFull() {
+  if (isFull()) {
+    save('fh-full', false);
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  } else {
+    save('fh-full', true);
+    enterFull();
+  }
+}
+['fullscreenchange', 'webkitfullscreenchange'].forEach((ev) => document.addEventListener(ev, () => {
+  if (!isFull()) save('fh-full', false);   // left by the system (back, swipe): don't force it back
+  render();
+}));
+document.addEventListener('pointerup', (e) => {
+  if (canFull && load('fh-full') && !isFull() && !e.target.closest('.nav-full')) enterFull();
+}, true);
+const FULL_ICON = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>';
+const EXIT_ICON = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg>';
 
 async function openParent() {
   const pin = setting('pin');
@@ -113,10 +149,15 @@ setRenderer(() => {
   const view = mainView();
   const main = h('main', { class: view.classList.contains('fill') ? 'fill' : '' }, view);
   root.replaceChildren(
-    h('nav', { class: 'nav' }, NAV.map(([id, icon, label]) =>
-      h('button', { class: active === id ? 'on' : '',
-        onclick: () => (id === 'parent' ? openParent() : go(id)) },
-        h('span', { class: 'nav-icon' }, icon), h('span', {}, label)))),
+    h('nav', { class: 'nav' },
+      NAV.map(([id, icon, label]) =>
+        h('button', { class: active === id ? 'on' : '', onclick: () => go(id) },
+          h('span', { class: 'nav-icon' }, icon), h('span', {}, label))),
+      canFull && h('button', { class: 'nav-push nav-full', onclick: toggleFull, 'aria-pressed': String(isFull()) },
+        h('span', { class: 'nav-icon', innerHTML: isFull() ? EXIT_ICON : FULL_ICON }),
+        h('span', {}, isFull() ? 'Exit full' : 'Full screen')),
+      h('button', { class: (active === 'parent' ? 'on' : '') + (canFull ? '' : ' nav-push'), onclick: openParent },
+        h('span', { class: 'nav-icon' }, '🔒'), h('span', {}, 'Parents'))),
     main);
   main.scrollTop = keepScroll;
   main.querySelectorAll('[data-scroll]').forEach((el) => {
